@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mi tienda</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, sans-serif; background: #f5f5f5; color: #222; }
+    header { background: #1a1a2e; color: white; padding: 1rem 2rem; display: flex; justify-content: space-between; align-items: center; }
+    nav button { background: none; border: 1px solid rgba(255,255,255,0.4); color: white; padding: .4rem .9rem; border-radius: 6px; cursor: pointer; margin-left: .5rem; }
+    nav button:hover { background: rgba(255,255,255,0.1); }
+    .container { max-width: 900px; margin: 2rem auto; padding: 0 1rem; }
+    .card { background: white; border-radius: 10px; padding: 1.5rem; margin-bottom: 1rem; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+    h2 { margin-bottom: 1rem; font-size: 1.2rem; }
+    label { display: block; margin-bottom: .3rem; font-size: .9rem; color: #555; }
+    input, textarea { width: 100%; padding: .6rem .8rem; border: 1px solid #ddd; border-radius: 6px; font-size: 1rem; margin-bottom: .8rem; }
+    textarea { height: 80px; resize: vertical; }
+    button.primary { background: #1a1a2e; color: white; border: none; padding: .7rem 1.4rem; border-radius: 6px; cursor: pointer; font-size: 1rem; }
+    button.primary:hover { background: #2d2d5e; }
+    .msg { padding: .6rem 1rem; border-radius: 6px; margin-bottom: 1rem; font-size: .9rem; }
+    .msg.ok  { background: #d4edda; color: #155724; }
+    .msg.err { background: #f8d7da; color: #721c24; }
+    .articulo { border: 1px solid #eee; border-radius: 8px; padding: 1rem; margin-bottom: .8rem; }
+    .articulo h3 { font-size: 1rem; margin-bottom: .3rem; }
+    .articulo .precio { font-weight: bold; color: #1a1a2e; }
+    .articulo .desc { font-size: .9rem; color: #666; margin: .3rem 0; }
+    .articulo .meta { font-size: .8rem; color: #aaa; }
+    .tabs { display: flex; gap: .5rem; margin-bottom: 1.5rem; }
+    .tabs button { padding: .5rem 1.2rem; border: 2px solid #ddd; background: white; border-radius: 6px; cursor: pointer; font-size: .95rem; }
+    .tabs button.active { border-color: #1a1a2e; background: #1a1a2e; color: white; }
+    #user-info { font-size: .9rem; color: rgba(255,255,255,0.8); }
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+
+<header>
+  <span style="font-weight:bold;font-size:1.1rem">Mi Tienda</span>
+  <div style="display:flex;align-items:center;gap:1rem">
+    <span id="user-info"></span>
+    <nav>
+      <button id="btn-logout" class="hidden" onclick="logout()">Cerrar sesión</button>
+    </nav>
+  </div>
+</header>
+
+<div class="container">
+  <div id="msg-global"></div>
+
+  <!-- Sección auth -->
+  <div id="seccion-auth">
+    <div class="tabs">
+      <button class="active" onclick="showTab('login')">Iniciar sesión</button>
+      <button onclick="showTab('registro')">Registrarse</button>
+    </div>
+
+    <div id="tab-login" class="card">
+      <h2>Iniciar sesión</h2>
+      <label>Usuario</label>
+      <input id="login-user" type="text" placeholder="tu usuario">
+      <label>Contraseña</label>
+      <input id="login-pass" type="password" placeholder="••••••••">
+      <button class="primary" onclick="login()">Entrar</button>
+    </div>
+
+    <div id="tab-registro" class="card hidden">
+      <h2>Crear cuenta</h2>
+      <label>Usuario</label>
+      <input id="reg-user" type="text" placeholder="elige un usuario">
+      <label>Contraseña</label>
+      <input id="reg-pass" type="password" placeholder="••••••••">
+      <label>Rol</label>
+      <select id="reg-rol" style="width:100%;padding:.6rem;border:1px solid #ddd;border-radius:6px;margin-bottom:.8rem;font-size:1rem">
+        <option value="user">Usuario</option>
+        <option value="admin">Administrador</option>
+      </select>
+      <button class="primary" onclick="registro()">Registrarse</button>
+    </div>
+  </div>
+
+  <!-- Sección artículos -->
+  <div id="seccion-articulos" class="hidden">
+
+    <!-- Formulario solo para admin -->
+    <div id="form-articulo" class="card hidden">
+      <h2>Crear nuevo artículo</h2>
+      <label>Título</label>
+      <input id="art-titulo" type="text" placeholder="Nombre del producto">
+      <label>Descripción</label>
+      <textarea id="art-desc" placeholder="Describe el producto..."></textarea>
+      <label>Precio ($)</label>
+      <input id="art-precio" type="number" min="0" step="0.01" placeholder="0.00">
+      <button class="primary" onclick="crearArticulo()">Publicar artículo</button>
+    </div>
+
+    <div class="card">
+      <h2>Artículos disponibles</h2>
+      <div id="lista-articulos">Cargando...</div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const API = 'http://localhost:3000/api';
+  let token = localStorage.getItem('token');
+  let usuario = JSON.parse(localStorage.getItem('usuario') || 'null');
+
+  function showMsg(texto, tipo = 'ok') {
+    const el = document.getElementById('msg-global');
+    el.innerHTML = `<div class="msg ${tipo}">${texto}</div>`;
+    setTimeout(() => el.innerHTML = '', 3000);
+  }
+
+  function showTab(tab) {
+    document.getElementById('tab-login').classList.toggle('hidden', tab !== 'login');
+    document.getElementById('tab-registro').classList.toggle('hidden', tab !== 'registro');
+    document.querySelectorAll('.tabs button').forEach((b, i) => {
+      b.classList.toggle('active', (i === 0 && tab === 'login') || (i === 1 && tab === 'registro'));
+    });
+  }
+
+  async function login() {
+    const username = document.getElementById('login-user').value.trim();
+    const password = document.getElementById('login-pass').value;
+    if (!username || !password) return showMsg('Completa todos los campos', 'err');
+
+    const res  = await fetch(`${API}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password })
+    });
+    const data = await res.json();
+
+    if (!res.ok) return showMsg(data.error, 'err');
+
+    token   = data.token;
+    usuario = parseJWT(token);
+    localStorage.setItem('token', token);
+    localStorage.setItem('usuario', JSON.stringify(usuario));
+    mostrarApp();
+    showMsg(`Bienvenido, ${usuario.username}`);
+  }
+
+  async function registro() {
+    const username = document.getElementById('reg-user').value.trim();
+    const password = document.getElementById('reg-pass').value;
+    const rol      = document.getElementById('reg-rol').value;
+    if (!username || !password) return showMsg('Completa todos los campos', 'err');
+
+    const res  = await fetch(`${API}/auth/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password, rol })
+    });
+    const data = await res.json();
+
+    if (!res.ok) return showMsg(data.error, 'err');
+    showMsg('Cuenta creada. Ahora inicia sesión.');
+    showTab('login');
+  }
+
+  async function crearArticulo() {
+    const titulo      = document.getElementById('art-titulo').value.trim();
+    const descripcion = document.getElementById('art-desc').value.trim();
+    const precio      = parseFloat(document.getElementById('art-precio').value);
+    if (!titulo || !descripcion || isNaN(precio)) return showMsg('Completa todos los campos', 'err');
+
+    const res  = await fetch(`${API}/articulos`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify({ titulo, descripcion, precio })
+    });
+    const data = await res.json();
+
+    if (!res.ok) return showMsg(data.error, 'err');
+    showMsg('Artículo publicado correctamente');
+    document.getElementById('art-titulo').value  = '';
+    document.getElementById('art-desc').value    = '';
+    document.getElementById('art-precio').value  = '';
+    cargarArticulos();
+  }
+
+  async function cargarArticulos() {
+    const res  = await fetch(`${API}/articulos`);
+    const data = await res.json();
+    const lista = document.getElementById('lista-articulos');
+
+    if (!data.length) { lista.innerHTML = '<p style="color:#aaa">No hay artículos aún.</p>'; return; }
+
+    lista.innerHTML = data.map(a => `
+      <div class="articulo">
+        <h3>${a.titulo}</h3>
+        <p class="desc">${a.descripcion}</p>
+        <p class="precio">$${parseFloat(a.precio).toFixed(2)}</p>
+        <p class="meta">Publicado por ${a.autor} · ${new Date(a.creado_en).toLocaleDateString()}</p>
+      </div>
+    `).join('');
+  }
+
+  function logout() {
+    localStorage.removeItem('token');
+    localStorage.removeItem('usuario');
+    token = null; usuario = null;
+    document.getElementById('seccion-auth').classList.remove('hidden');
+    document.getElementById('seccion-articulos').classList.add('hidden');
+    document.getElementById('btn-logout').classList.add('hidden');
+    document.getElementById('user-info').textContent = '';
+  }
+
+  function mostrarApp() {
+    document.getElementById('seccion-auth').classList.add('hidden');
+    document.getElementById('seccion-articulos').classList.remove('hidden');
+    document.getElementById('btn-logout').classList.remove('hidden');
+    document.getElementById('user-info').textContent = `${usuario.username} (${usuario.rol})`;
+    if (usuario.rol === 'admin') {
+      document.getElementById('form-articulo').classList.remove('hidden');
+    }
+    cargarArticulos();
+  }
+
+  function parseJWT(t) {
+    try { return JSON.parse(atob(t.split('.')[1])); } catch { return {}; }
+  }
+
+  if (token && usuario) mostrarApp();
+</script>
+</body>
+</html>
